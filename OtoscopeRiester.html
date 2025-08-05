@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบตรวจเช็คเครื่อง Otoscope Riester</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #f8fafc;
+        }
+        .tab-active {
+            color: #3b82f6;
+            border-bottom: 2px solid #3b82f6;
+            font-weight: 500;
+        }
+        .custom-checkbox:checked { background-color: #3b82f6; border-color: #3b82f6; }
+        .custom-radio:checked { background-color: #3b82f6; border-color: #3b82f6; }
+        .loading {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(255, 255, 255, 0.8); display: flex;
+            justify-content: center; align-items: center; z-index: 9999;
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6; border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .modal {
+            display: none; position: fixed; z-index: 1000; left: 0; top: 0;
+            width: 100%; height: 100%; background-color: rgba(0,0,0,0.4);
+            animation: fadeIn 0.3s;
+        }
+        .modal-content {
+            background-color: white; margin: 5vh auto; padding: 24px;
+            border-radius: 8px; width: 90%; max-width: 500px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); animation: slideIn 0.3s;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideIn { from { transform: translateY(-30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close:hover { color: #555; }
+        .image-preview { max-width: 100%; max-height: 200px; margin-top: 10px; border-radius: 4px; }
+        .status-ok { background-color: #dcfce7; color: #166534; }
+        .status-issue { background-color: #fee2e2; color: #991b1b; }
+        .form-section { margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid #e5e7eb; }
+        .form-section:last-child { border-bottom: none; }
+        .note-button { color: #6b7280; font-size: 0.875rem; display: flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; border-radius: 0.25rem; transition: all 0.2s; }
+        .note-button:hover { background-color: #f3f4f6; color: #4b5563; }
+        .note-button i { font-size: 0.75rem; }
+        .has-note { color: #3b82f6; font-weight: 500; }
+        .equipment-image { width: 128px; height: 128px; object-fit: contain; border-radius: 8px; }
+        #detail-content {
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        .radio-group { display: flex; align-items: center; gap: 1rem; }
+        .radio-option { display: flex; align-items: center; cursor: pointer; }
+        .radio-option input { cursor: pointer; }
+        .radio-option span { margin-left: 0.5rem; }
+    </style>
+</head>
+<body class="antialiased">
+    <div id="loading" class="loading" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+
+    <div class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-white border-b border-gray-200 py-3 sticky top-0 z-50">
+            <div class="container mx-auto px-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <img src="https://inwfile.com/s-dx/36v2el.png" alt="Otoscope Riester" class="h-8 mr-3 rounded-md">
+                        <h1 class="text-lg font-medium text-gray-800">ระบบตรวจเช็คเครื่อง Otoscope Riester</h1>
+                    </div>
+                    <div class="text-xs text-gray-500 text-right">
+                        <p>ID: 100000322014</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <div class="bg-white border-b border-gray-200">
+            <div class="container mx-auto px-4">
+                <div class="flex overflow-x-auto">
+                    <button id="tab-check" class="tab-active px-4 py-3 transition-colors duration-200 focus:outline-none"><i class="fas fa-clipboard-check mr-2"></i>ตรวจเช็ค</button>
+                    <button id="tab-history" class="text-gray-500 hover:text-gray-700 px-4 py-3 transition-colors duration-200 focus:outline-none"><i class="fas fa-history mr-2"></i>ประวัติ</button>
+                    <button id="tab-dashboard" class="text-gray-500 hover:text-gray-700 px-4 py-3 transition-colors duration-200 focus:outline-none"><i class="fas fa-chart-bar mr-2"></i>Dashboard</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="flex-grow container mx-auto p-4">
+            <!-- Equipment Info Section -->
+            <div class="bg-white rounded-lg shadow-sm p-4 mb-4">
+                <div class="flex flex-col md:flex-row items-center">
+                    <div class="md:w-1/4 mb-4 md:mb-0 flex justify-center">
+                        <img src="https://inwfile.com/s-dx/36v2el.png" alt="Otoscope Riester" class="equipment-image shadow" onerror="this.onerror=null;this.src='https://placehold.co/128x128/cccccc/FFFFFF?text=No+Image';">
+                    </div>
+                    <div class="md:w-3/4 md:pl-6">
+                        <h2 class="text-xl font-semibold text-gray-800 mb-2">Otoscope Riester</h2>
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                            <p><span class="text-gray-500">วันที่เริ่มใช้:</span> <span id="start-date"></span></p>
+                            <p><span class="text-gray-500">ราคา:</span> 12,900 บาท</p>
+                            <p><span class="text-gray-500">สถานะล่าสุด:</span> <span id="current-status" class="font-medium text-gray-600">รอข้อมูล...</span></p>
+                            <p><span class="text-gray-500">ตรวจล่าสุด:</span> <span id="last-check" class="font-medium">-</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Check Form Section -->
+            <div id="content-check" class="bg-white rounded-lg shadow-sm p-4">
+                <form id="check-form">
+                    <div class="form-section">
+                        <h2 class="text-lg font-medium text-gray-800 mb-3">1. ข้อมูลทั่วไป</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">วันที่ตรวจเช็ค</label>
+                                <input type="date" id="check-date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">เวร</label>
+                                <div class="flex space-x-4">
+                                    <label class="radio-option"><input type="radio" name="shift" value="เช้า" class="custom-radio w-4 h-4" required><span>เช้า</span></label>
+                                    <label class="radio-option"><input type="radio" name="shift" value="บ่าย" class="custom-radio w-4 h-4"><span>บ่าย</span></label>
+                                    <label class="radio-option"><input type="radio" name="shift" value="ดึก" class="custom-radio w-4 h-4"><span>ดึก</span></label>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">ผู้ตรวจเช็ค</label>
+                                <input type="text" id="checker-name" placeholder="ชื่อ-นามสกุล" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="checklist-container"></div>
+
+                    <div class="form-section">
+                         <h2 class="text-lg font-medium text-gray-800 mb-3">4. หมายเหตุ</h2>
+                         <textarea id="general-notes" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400" rows="3" placeholder="ระบุหมายเหตุเพิ่มเติม (ถ้ามี)"></textarea>
+                    </div>
+
+                    <div class="flex justify-center mt-6">
+                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-6 rounded-md shadow-sm transition-colors duration-300 flex items-center"><i class="fas fa-save mr-2"></i>บันทึกการตรวจเช็ค</button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="content-history" class="bg-white rounded-lg shadow-sm p-4" style="display: none;">
+                <h2 class="text-lg font-medium text-gray-800 mb-4">ประวัติการตรวจเช็ค</h2>
+                <div class="overflow-x-auto">
+                    <table id="history-table" class="min-w-full bg-white">
+                        <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+                            <tr>
+                                <th class="py-2 px-3 text-left">วันที่</th><th class="py-2 px-3 text-left">เวร</th>
+                                <th class="py-2 px-3 text-left">ผู้ตรวจ</th>
+                                <th class="py-2 px-3 text-center">สถานะ</th>
+                                <th class="py-2 px-3 text-center">รายละเอียด</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-data" class="text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div id="content-dashboard" class="bg-white rounded-lg shadow-sm p-4" style="display: none;">
+                <h2 class="text-lg font-medium text-gray-800 mb-4">Dashboard สรุปผล</h2>
+                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="bg-white p-3 rounded-lg border"><h3 class="text-base font-medium text-gray-700 mb-3">ปัญหาที่พบบ่อย</h3><canvas id="common-issues-chart"></canvas></div>
+                    <div class="bg-white p-3 rounded-lg border"><h3 class="text-base font-medium text-gray-700 mb-3">การตรวจเช็คตามเวร</h3><canvas id="shift-chart"></canvas></div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="bg-white border-t border-gray-200 py-3 mt-4">
+            <div class="container mx-auto px-4 text-center text-sm text-gray-500">
+                <p>© 2025 ระบบตรวจเช็คเครื่องมือแพทย์</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Modals -->
+    <div id="note-modal" class="modal"><div class="modal-content"><span class="close">&times;</span><h3 class="text-lg font-medium text-gray-800 mb-3">เพิ่มหมายเหตุ</h3><input type="hidden" id="note-item-id"><div class="mb-3"><label class="block text-sm text-gray-600 mb-1">หมายเหตุ</label><textarea id="note-text" class="w-full px-3 py-2 border border-gray-300 rounded-md" rows="3"></textarea></div><div class="mb-4"><label class="block text-sm text-gray-600 mb-1">อัปโหลดรูปภาพ (ถ้ามี)</label><input type="file" id="note-image" accept="image/*" class="w-full text-sm"><div id="image-preview-container" class="mt-2" style="display: none;"><img id="image-preview" class="image-preview"></div></div><div class="flex justify-end"><button id="save-note" class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-1.5 px-4 rounded-md text-sm"><i class="fas fa-save mr-1"></i>บันทึก</button></div></div></div>
+    <div id="detail-modal" class="modal"><div class="modal-content"><div class="flex justify-between items-start mb-3"><h3 class="text-lg font-medium text-gray-800">รายละเอียดการตรวจเช็ค</h3><span class="close">&times;</span></div><div id="detail-content" class="space-y-3 text-sm"></div></div></div>
+    <div id="message-modal" class="modal"><div class="modal-content max-w-sm"><span class="close">&times;</span><div class="text-center"><div id="message-icon" class="text-4xl mb-3"></div><h3 id="message-title" class="text-lg font-medium text-gray-800 mb-2"></h3><p id="message-text" class="text-gray-600 mb-4 text-sm"></p><button id="message-ok" class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-5 rounded-md">ตกลง</button></div></div></div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxuk0wRNACj830o9m_L6OpfIz8bsmCT1VDlY7ftysuNqo6wmiJKRAKQEKTRUMJcrsnJMQ/exec";
+        const EKG_START_DATE = new Date('2025-07-29');
+        const TELEGRAM_TOKEN = "7549789477:AAF7ehMDQGyAtHyAKqcWHl76v2Qmp9lqmrg";
+        const TELEGRAM_CHAT_ID = "-1002884790062";
+
+        const checklistItems = [
+            { id: 'section-general', type: 'header', label: '2. ตรวจสภาพทั่วไป', checkAll: 'พร้อมใช้' },
+            { id: 'otoscope_head', label: 'หัวตรวจส่องหู', desc: '', type: 'radio', options: ['พร้อมใช้', 'ชำรุด'], section: 'general' },
+            { id: 'handle', label: 'ด้ามถือ', desc: '', type: 'radio', options: ['พร้อมใช้', 'ชำรุด'], section: 'general' },
+            { id: 'specula', label: 'กรวยส่องหู 5 อัน', desc: '', type: 'radio', options: ['พร้อมใช้', 'ชำรุด'], section: 'general' },
+            { id: 'section-performance', type: 'header', label: '3. ทดสอบประสิทธิภาพ', checkAll: 'พร้อมใช้' },
+            { id: 'light_test', label: 'ไฟติด พร้อมใช้งาน', desc: '', type: 'radio', options: ['พร้อมใช้', 'ชำรุด'], section: 'performance' },
+        ];
+
+        // --- INITIALIZATION ---
+        let notes = {};
+        let imageFiles = {};
+        let checkData = [];
+        let charts = {};
+
+        // --- DOM ELEMENTS ---
+        const loadingIndicator = document.getElementById('loading');
+        const tabs = {
+            check: document.getElementById('tab-check'),
+            history: document.getElementById('tab-history'),
+            dashboard: document.getElementById('tab-dashboard'),
+        };
+        const contents = {
+            check: document.getElementById('content-check'),
+            history: document.getElementById('content-history'),
+            dashboard: document.getElementById('content-dashboard'),
+        };
+        const modals = {
+            note: document.getElementById('note-modal'),
+            detail: document.getElementById('detail-modal'),
+            message: document.getElementById('message-modal'),
+        };
+        const closeButtons = document.getElementsByClassName('close');
+
+        // --- HELPER FUNCTIONS ---
+        const showLoading = () => loadingIndicator.style.display = 'flex';
+        const hideLoading = () => loadingIndicator.style.display = 'none';
+        const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        function showMessage(title, text, isSuccess = true) {
+            document.getElementById('message-title').textContent = title;
+            document.getElementById('message-text').textContent = text;
+            const icon = document.getElementById('message-icon');
+            if (isSuccess) {
+                icon.innerHTML = `<i class="fas fa-check-circle text-green-500"></i>`;
+            } else {
+                icon.innerHTML = `<i class="fas fa-times-circle text-red-500"></i>`;
+            }
+            modals.message.style.display = 'block';
+        }
+
+        // --- UI FUNCTIONS ---
+        function switchTab(tabName) {
+            Object.values(tabs).forEach(t => {
+                if(t) t.classList.remove('tab-active', 'text-gray-500', 'hover:text-gray-700');
+            });
+            Object.values(contents).forEach(c => {
+                if(c) c.style.display = 'none';
+            });
+            
+            Object.entries(tabs).forEach(([key, tabElement]) => {
+                if (tabElement) {
+                    if (key === tabName) {
+                        tabElement.classList.add('tab-active');
+                    } else {
+                        tabElement.classList.add('text-gray-500', 'hover:text-gray-700');
+                    }
+                }
+            });
+
+            if (contents[tabName]) {
+                contents[tabName].style.display = 'block';
+            }
+
+            if (tabName === 'history' || tabName === 'dashboard') {
+                loadHistoryData();
+            }
+        }
+
+        function generateChecklist() {
+            const container = document.getElementById('checklist-container');
+            let html = '';
+            checklistItems.forEach(item => {
+                if (item.type === 'header') {
+                    html += `<div class="form-section" data-section-container="${item.section || item.id}">
+                                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3">
+                                    <h2 class="text-lg font-medium text-gray-800 mb-2 sm:mb-0">${item.label}</h2>
+                                    ${item.checkAll ? `
+                                    <label class="radio-option text-sm">
+                                        <input type="checkbox" class="custom-checkbox w-4 h-4 check-all" data-section="${item.id}" data-value="${item.checkAll}">
+                                        <span>ติ๊กเลือก '${item.checkAll}' ทั้งหมด</span>
+                                    </label>
+                                    ` : ''}
+                                </div>
+                                <div class="space-y-3">`;
+                } else {
+                    html += `<div class="flex flex-col sm:flex-row sm:items-center justify-between py-3 border-b border-gray-100">
+                        <div class="mb-3 sm:mb-0 sm:pr-4">
+                            <p class="text-gray-800">${item.label}</p>
+                            <p class="text-xs text-gray-500">${item.desc}</p>
+                        </div>
+                        <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto flex-shrink-0">
+                            <div class="radio-group">`;
+                    item.options.forEach(opt => {
+                        html += `<label class="radio-option"><input type="radio" name="${item.id}" value="${opt}" class="custom-radio w-4 h-4" data-section-item="${item.section}" required><span>${opt}</span></label>`;
+                    });
+                    html += `</div>
+                            <button type="button" class="add-note note-button ml-4" data-item="${item.id}"><i class="fas fa-comment"></i> หมายเหตุ</button>
+                        </div>
+                    </div>`;
+                }
+                if (checklistItems[checklistItems.indexOf(item) + 1]?.type === 'header' || checklistItems.indexOf(item) === checklistItems.length - 1) {
+                    html += `</div></div>`;
+                }
+            });
+            container.innerHTML = html;
+        }
+
+        // --- TELEGRAM NOTIFICATION ---
+        async function sendTelegramNotification(checkRecord) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false });
+            const statusIcon = checkRecord.status === 'พร้อมใช้' ? '✅' : '❗️';
+            let message = `🚨 <b>แจ้งเตือนการตรวจเช็คเครื่อง</b> 🚨\n\n`;
+            message += `<b>เครื่อง:</b> Otoscope Riester\n`;
+            message += `<b>วันที่:</b> ${new Date(checkRecord.date).toLocaleDateString('th-TH')}\n`;
+            message += `<b>เวลา:</b> ${timeString} น.\n`;
+            message += `<b>เวร:</b> ${checkRecord.shift}\n`;
+            message += `<b>ผู้ตรวจ:</b> ${checkRecord.checkerName}\n`;
+            message += `<b>สถานะ:</b> ${statusIcon} ${checkRecord.status}\n\n`;
+
+            if (checkRecord.status === 'มีปัญหา') {
+                message += `<b>รายการที่พบปัญหา:</b>\n`;
+                let issueFound = false;
+                checklistItems.filter(item => item.type === 'radio').forEach(item => {
+                    const value = checkRecord.items[item.id];
+                    if (value === 'ชำรุด') {
+                        message += `- ${item.label}\n`;
+                        issueFound = true;
+                    }
+                });
+                 if (!issueFound) {
+                    message += `- ไม่ได้ระบุ\n`;
+                }
+            }
+
+            if(checkRecord.generalNotes) {
+                message += `\n<b>หมายเหตุเพิ่มเติม:</b>\n${checkRecord.generalNotes}\n`;
+            }
+
+            const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`;
+            const payload = {
+                chat_id: TELEGRAM_CHAT_ID,
+                text: message,
+                parse_mode: 'HTML'
+            };
+
+            try {
+                await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } catch (error) {
+                console.error('Error sending Telegram notification:', error);
+            }
+        }
+
+        // --- DATA FUNCTIONS ---
+        async function loadHistoryData() {
+            if (APPS_SCRIPT_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
+                showMessage("ข้อผิดพลาด", "กรุณาตั้งค่า APPS_SCRIPT_URL ในโค้ดก่อน", false);
+                return;
+            }
+            showLoading();
+            try {
+                const response = await fetch(APPS_SCRIPT_URL);
+                const data = await response.json();
+                checkData = data;
+                displayHistory(checkData);
+                updateDashboard();
+                updateLatestStatus();
+            } catch (error) {
+                console.error("Error fetching data from Google Sheet:", error);
+                showMessage('ข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลประวัติได้', false);
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        async function saveCheck(e) {
+            e.preventDefault();
+            if (APPS_SCRIPT_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
+                showMessage("ข้อผิดพลาด", "กรุณาตั้งค่า APPS_SCRIPT_URL ในโค้ดก่อน", false);
+                return;
+            }
+            showLoading();
+
+            const formData = new FormData(e.target);
+            const checkRecord = {
+                date: document.getElementById('check-date').value,
+                shift: formData.get('shift'),
+                checkerName: document.getElementById('checker-name').value,
+                generalNotes: document.getElementById('general-notes').value,
+                items: {},
+                notes: {},
+                images: {}
+            };
+
+            let hasIssue = false;
+            checklistItems.filter(i => i.type !== 'header').forEach(item => {
+                const value = item.type === 'checkbox' ? formData.has(item.id) : formData.get(item.id);
+                checkRecord.items[item.id] = value;
+                if (value === 'ชำรุด') {
+                    hasIssue = true;
+                }
+            });
+            checkRecord.status = hasIssue ? 'มีปัญหา' : 'พร้อมใช้';
+
+            const imagePromises = Object.entries(imageFiles).map(async ([itemId, file]) => {
+                const base64String = await fileToBase64(file);
+                checkRecord.images[itemId] = base64String;
+            });
+            await Promise.all(imagePromises);
+            
+            Object.assign(checkRecord.notes, notes);
+
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(checkRecord),
+                    headers: {
+                        "Content-Type": "text/plain;charset=utf-8",
+                    },
+                });
+
+                await sendTelegramNotification(checkRecord);
+                showMessage('สำเร็จ', 'บันทึกข้อมูลและส่งแจ้งเตือนเรียบร้อยแล้ว');
+                resetForm();
+                loadHistoryData();
+
+            } catch (error) {
+                console.error("Error saving check:", error);
+                showMessage('ข้อผิดพลาด', `เกิดปัญหาในการบันทึกข้อมูล: ${error.message}`, false);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // --- HISTORY & DETAIL FUNCTIONS ---
+        function displayHistory(data) {
+            const tbody = document.getElementById('history-data');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500">ไม่พบข้อมูล</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(check => {
+                const statusClass = check.status === 'พร้อมใช้' ? 'status-ok' : 'status-issue';
+                return `<tr class="border-b hover:bg-gray-50">
+                    <td class="py-2 px-3">${formatDate(check.date)}</td>
+                    <td class="py-2 px-3">${check.shift}</td>
+                    <td class="py-2 px-3 truncate" title="${check.checkerName}">${check.checkerName}</td>
+                    <td class="py-2 px-3 text-center"><span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusClass}">${check.status}</span></td>
+                    <td class="py-2 px-3 text-center"><button class="view-detail text-blue-500 hover:text-blue-700" data-id="${check.id}"><i class="fas fa-eye"></i></button></td>
+                </tr>`;
+            }).join('');
+        }
+
+        document.getElementById('history-data').addEventListener('click', (e) => {
+            const button = e.target.closest('.view-detail');
+            if (button) {
+                const check = checkData.find(c => c.id === button.dataset.id);
+                showCheckDetail(check);
+            }
+        });
+
+        function showCheckDetail(check) {
+            const content = document.getElementById('detail-content');
+            let html = `<div class="bg-blue-50 p-3 rounded-md mb-3">
+                <h4 class="font-medium text-blue-700">ข้อมูลทั่วไป</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                    <p><span class="text-gray-500">วันที่:</span> ${formatDate(check.date)}</p>
+                    <p><span class="text-gray-500">เวร:</span> ${check.shift}</p>
+                    <p class="col-span-2"><span class="text-gray-500">ผู้ตรวจ:</span> ${check.checkerName}</p>
+                </div>
+            </div>`;
+            
+            checklistItems.forEach(item => {
+                if(item.type === 'header') {
+                    html += `<h4 class="font-medium text-gray-700 mt-4 mb-2">${item.label}</h4><div class="space-y-2 mb-4">`;
+                } else {
+                    const value = check.items[item.id];
+                    const isOk = (value === 'พร้อมใช้' || value === true);
+                    const statusClass = isOk ? 'status-ok' : 'status-issue';
+                    const statusText = typeof value === 'boolean' ? (value ? 'รับทราบ' : 'ไม่รับทราบ') : (value || 'N/A');
+                    const note = check.notes[item.id];
+                    const imageUrl = check.imageUrls[item.id];
+
+                    html += `<div class="flex justify-between items-start border-b py-1.5">
+                        <div>${item.label}</div>
+                        <div class="text-right">
+                            <span class="px-2 py-0.5 rounded-full text-xs font-medium ${statusClass}">${statusText}</span>
+                            ${note?.text ? `<p class="text-xs text-gray-600 mt-1">หมายเหตุ: ${note.text}</p>` : ''}
+                            ${imageUrl ? `<a href="${imageUrl}" target="_blank"><img src="${imageUrl}" alt="รูปภาพ" class="mt-1 max-h-24 ml-auto rounded"></a>` : ''}
+                        </div>
+                    </div>`;
+                }
+                if (checklistItems[checklistItems.indexOf(item) + 1]?.type === 'header' || checklistItems.indexOf(item) === checklistItems.length - 1) {
+                    html += `</div>`;
+                }
+            });
+
+            if(check.generalNotes) {
+                 html += `<h4 class="font-medium text-gray-700 mt-4 mb-2">หมายเหตุเพิ่มเติม</h4>
+                 <p class="text-gray-600 bg-gray-50 p-2 rounded-md">${check.generalNotes}</p>`;
+            }
+
+            content.innerHTML = html;
+            modals.detail.style.display = 'block';
+        }
+
+        function updateLatestStatus() {
+            if (checkData && checkData.length > 0) {
+                const lastCheck = checkData[0];
+                document.getElementById('last-check').textContent = formatDate(lastCheck.date);
+                const statusEl = document.getElementById('current-status');
+                statusEl.textContent = lastCheck.status === 'พร้อมใช้' ? 'พร้อมใช้งาน' : 'มีปัญหา';
+                statusEl.className = lastCheck.status === 'พร้อมใช้' ? 'font-medium text-green-600' : 'font-medium text-red-600';
+            }
+        }
+
+        function updateDashboard() {
+            if (contents.dashboard.style.display !== 'block' || !checkData || checkData.length === 0) {
+                return;
+            }
+            const issueCounts = {};
+            checkData.forEach(check => {
+                Object.entries(check.items).forEach(([key, value]) => {
+                    if (value === 'ชำรุด') {
+                        issueCounts[key] = (issueCounts[key] || 0) + 1;
+                    }
+                });
+            });
+            const issueLabels = Object.keys(issueCounts).map(key => checklistItems.find(i => i.id === key)?.label || key);
+            const issueData = Object.values(issueCounts);
+            renderChart('common-issues-chart', 'bar', issueLabels, issueData, 'ปัญหาที่พบบ่อย', '#ef4444');
+
+            const shiftCounts = { 'เช้า': 0, 'บ่าย': 0, 'ดึก': 0 };
+            checkData.forEach(check => {
+                if (shiftCounts.hasOwnProperty(check.shift)) {
+                    shiftCounts[check.shift]++;
+                }
+            });
+            renderChart('shift-chart', 'pie', Object.keys(shiftCounts), Object.values(shiftCounts), 'การตรวจเช็คตามเวร', ['#3b82f6', '#10b981', '#f97316']);
+        }
+
+        function renderChart(canvasId, type, labels, data, title, color) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            if (charts[canvasId]) charts[canvasId].destroy();
+            
+            const canvas = document.getElementById(canvasId);
+            const parent = canvas.parentElement;
+            let noDataEl = parent.querySelector('.no-data');
+            if(data.length === 0) {
+                canvas.style.display = 'none';
+                if (!noDataEl) {
+                    noDataEl = document.createElement('div');
+                    noDataEl.className = 'no-data flex h-48 items-center justify-center text-gray-400 text-sm';
+                    noDataEl.textContent = 'ไม่มีข้อมูลเพียงพอสำหรับสร้างกราฟ';
+                    parent.appendChild(noDataEl);
+                }
+                noDataEl.style.display = 'flex';
+                return;
+            }
+            
+            if (noDataEl) noDataEl.style.display = 'none';
+            canvas.style.display = 'block';
+
+            charts[canvasId] = new Chart(ctx, {
+                type: type,
+                data: { labels: labels, datasets: [{ label: title, data: data, backgroundColor: color }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: type === 'pie' } } }
+            });
+        }
+
+        function resetForm() {
+            document.getElementById('check-form').reset();
+            document.getElementById('check-date').valueAsDate = new Date();
+            notes = {};
+            imageFiles = {};
+        }
+
+        function setupEventListeners() {
+            Object.entries(tabs).forEach(([key, tabElement]) => {
+                if (tabElement) tabElement.addEventListener('click', () => switchTab(key));
+            });
+
+            document.getElementById('check-form').addEventListener('submit', saveCheck);
+
+            document.getElementById('checklist-container').addEventListener('change', (e) => {
+                if(e.target.classList.contains('check-all')) {
+                    const section = e.target.dataset.section;
+                    const value = e.target.dataset.value;
+                    const isChecked = e.target.checked;
+                    const itemsToCheck = checklistItems.filter(item => item.section === section.replace('section-',''));
+                    itemsToCheck.forEach(item => {
+                        const radio = document.querySelector(`input[name="${item.id}"][value="${value}"]`);
+                        if(radio) radio.checked = isChecked;
+                    });
+                }
+            });
+
+            for (let i = 0; i < closeButtons.length; i++) {
+                closeButtons[i].addEventListener('click', function() { this.closest('.modal').style.display = 'none'; });
+            }
+            document.getElementById('message-ok').addEventListener('click', () => modals.message.style.display = 'none');
+            window.addEventListener('click', (event) => {
+                if (Object.values(modals).includes(event.target)) event.target.style.display = 'none';
+            });
+
+            document.getElementById('checklist-container').addEventListener('click', (e) => {
+                const button = e.target.closest('.add-note');
+                if (button) {
+                    const itemId = button.dataset.item;
+                    document.getElementById('note-item-id').value = itemId;
+                    document.getElementById('note-text').value = notes[itemId]?.text || '';
+                    const previewContainer = document.getElementById('image-preview-container');
+                    const preview = document.getElementById('image-preview');
+                    if (imageFiles[itemId]) {
+                        preview.src = URL.createObjectURL(imageFiles[itemId]);
+                        previewContainer.style.display = 'block';
+                    } else {
+                        previewContainer.style.display = 'none';
+                    }
+                    modals.note.style.display = 'block';
+                }
+            });
+
+            document.getElementById('note-image').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                const itemId = document.getElementById('note-item-id').value;
+                if (file) {
+                    imageFiles[itemId] = file;
+                    document.getElementById('image-preview').src = URL.createObjectURL(file);
+                    document.getElementById('image-preview-container').style.display = 'block';
+                }
+            });
+
+            document.getElementById('save-note').addEventListener('click', () => {
+                const itemId = document.getElementById('note-item-id').value;
+                const noteText = document.getElementById('note-text').value;
+                notes[itemId] = { text: noteText };
+                const noteButton = document.querySelector(`.add-note[data-item="${itemId}"]`);
+                if (noteText || imageFiles[itemId]) {
+                    noteButton.classList.add('has-note');
+                    noteButton.innerHTML = '<i class="fas fa-comment-dots"></i> มีหมายเหตุ';
+                } else {
+                    noteButton.classList.remove('has-note');
+                    noteButton.innerHTML = '<i class="fas fa-comment"></i> หมายเหตุ';
+                }
+                modals.note.style.display = 'none';
+            });
+        }
+
+        // --- APP INITIALIZATION ---
+        function initApp() {
+            generateChecklist();
+            setupEventListeners();
+            resetForm();
+            document.getElementById('start-date').textContent = formatDate(EKG_START_DATE.toISOString());
+            switchTab('check');
+            loadHistoryData();
+        }
+
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
